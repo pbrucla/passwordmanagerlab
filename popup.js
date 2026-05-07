@@ -27,6 +27,25 @@ function showLoginScreen() {
     document.getElementById("loginBtn").addEventListener("click", handleLogin)
 }
 
+function validateMasterPassword(password) {
+    if (password.length < 8 || password.length > 20) {
+        return "Password must be 8-20 characters long."
+    }
+    if (!/[a-z]/.test(password)) {
+        return "Password must contain at least one lowercase letter."
+    }
+    if (!/[A-Z]/.test(password)) {
+        return "Password must contain at least one uppercase letter."
+    }
+    if (!/[0-9]/.test(password)) {
+        return "Password must contain at least one digit."
+    }
+    if (!/[^A-Za-z0-9]/.test(password)) {
+        return "Password must contain at least one symbol (non-alphanumeric)."
+    }
+    return null
+}
+
 async function handleSignup() {
     console.log("handleSignup called!")
 
@@ -42,6 +61,14 @@ async function handleSignup() {
 
     if (masterPassword !== confirmPassword) {
         document.getElementById("message").textContent = "Passwords don't match"
+        return
+    }
+
+    const passwordError = validateMasterPassword(masterPassword)
+    if (passwordError) {
+        document.getElementById("message").textContent = passwordError + " Please try again."
+        document.getElementById("masterPassword").value = ""
+        document.getElementById("confirmPassword").value = ""
         return
     }
 
