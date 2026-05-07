@@ -10,8 +10,10 @@ document.addEventListener("DOMContentLoaded", () => {
 })
 
 function showSignupScreen() {
-    // show the signup form
-    document.getElementById("signupBtn").addEventListener("click", handleSignup)
+    console.log("showSignupScreen called!") // add this
+    const btn = document.getElementById("signupBtn")
+    console.log("button found:", btn) // add this
+    btn.addEventListener("click", handleSignup)
 }
 
 function showLoginScreen() {
@@ -26,6 +28,8 @@ function showLoginScreen() {
 }
 
 async function handleSignup() {
+    console.log("handleSignup called!")
+
     const username = document.getElementById("username").value
     const masterPassword = document.getElementById("masterPassword").value
     const confirmPassword = document.getElementById("confirmPassword").value
@@ -43,9 +47,34 @@ async function handleSignup() {
 
     // Now you're ready for the crypto steps!
     document.getElementById("message").textContent = "Account created!"
+
+    chrome.storage.local.set({
+        username: username,
+        password: masterPassword  // plaintext for now, crypto comes next week!
+    }, () => {
+        console.log("Saved to storage!")
+        document.getElementById("message").textContent = "Account created!"
+    })
 }
 
 async function handleLogin() {
+    console.log("handleLogin called!")
+
     const masterPassword = document.getElementById("masterPassword").value
-    // Login logic goes here
+
+    if (!masterPassword) {
+        document.getElementById("message").textContent = "Please enter your password"
+        return
+    }
+
+    // Retrieve stored credentials
+    chrome.storage.local.get(["username", "password"], (data) => {
+        if (masterPassword === data.password) {
+            console.log("Login successful!")
+            document.getElementById("message").textContent = "Welcome back, " + data.username + "!"
+        } else {
+            console.log("Wrong password!")
+            document.getElementById("message").textContent = "Incorrect password"
+        }
+    })
 }
