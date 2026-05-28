@@ -64,7 +64,7 @@ async function handleSignup() {
         return
     }
 
-    const passwordError = validateMasterPassword(masterPassword)
+    const passwordError = false //validateMasterPassword(masterPassword)
     if (passwordError) {
         document.getElementById("message").textContent = passwordError + " Please try again."
         document.getElementById("masterPassword").value = ""
@@ -75,15 +75,35 @@ async function handleSignup() {
     document.getElementById("message").textContent = "Account created!"
 
 
-// Master Password (week 4ish)
+    const exportedKey = generateKey(masterPassword, username)
 
-    const keyMaterial = await crypto.subtle.importKey("raw", enc.encode(masterPassword), "PBKDF2", false, ["deriveBits", "deriveKey"])
+    chrome.storage.local.set({
+        username: username,
+        password: exportedKey
+    }, () => {
+        console.log("Saved to storage!")
+        document.getElementById("message").textContent = "Account created!"
+    })
 
+
+}
+
+async function generateKey(masterPassword, username) {
+    const enc = new TextEncoder()
+    const keyMaterial = await crypto.subtle.importKey(
+        "raw", 
+        enc.encode(masterPassword), 
+        "PBKDF2", 
+        false, 
+        ["deriveBits", "deriveKey"]
+    )
+
+    const salt = enc.encode(username);
     const masterKey = await crypto.subtle.deriveKey(
         {
             name: "PBKDF2",
             hash: "SHA-256",
-            salt: username,
+            salt: salt,
             iterations: 100000,
         }, 
         keyMaterial,
@@ -92,14 +112,7 @@ async function handleSignup() {
         ["encrypt", "decrypt"]   
     )
 
-    chrome.storage.local.set({
-        username: username,
-        password: masterKey  
-    }, () => {
-        console.log("Saved to storage!")
-        document.getElementById("message").textContent = "Account created!"
-    })
-
+    return await crypto.subtle.exportKey("jwk", masterKey)
 
 }
 
@@ -115,7 +128,7 @@ async function handleLogin() {
 
     // Retrieve stored credentials
     chrome.storage.local.get(["username", "password"], (data) => {
-        if (masterPassword === data.password) {
+        if (masterPassword === data.password.k) {
             console.log("Login successful!")
             document.getElementById("message").textContent = "Welcome back, " + data.username + "!"
         } else {
