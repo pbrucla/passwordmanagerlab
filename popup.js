@@ -72,16 +72,35 @@ async function handleSignup() {
         return
     }
 
-    // Now you're ready for the crypto steps!
     document.getElementById("message").textContent = "Account created!"
+
+
+// Master Password (week 4ish)
+
+    const keyMaterial = await crypto.subtle.importKey("raw", enc.encode(masterPassword), "PBKDF2", false, ["deriveBits", "deriveKey"])
+
+    const masterKey = await crypto.subtle.deriveKey(
+        {
+            name: "PBKDF2",
+            hash: "SHA-256",
+            salt: username,
+            iterations: 100000,
+        }, 
+        keyMaterial,
+        { "name": "AES-GCM", "length": 256 },
+        true,
+        ["encrypt", "decrypt"]   
+    )
 
     chrome.storage.local.set({
         username: username,
-        password: masterPassword  // plaintext for now, crypto comes next week!
+        password: masterKey  
     }, () => {
         console.log("Saved to storage!")
         document.getElementById("message").textContent = "Account created!"
     })
+
+
 }
 
 async function handleLogin() {
