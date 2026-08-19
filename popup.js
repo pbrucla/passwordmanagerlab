@@ -1,3 +1,5 @@
+let globalMasterKey = "";
+
 document.addEventListener("DOMContentLoaded", () => {
     // Check if account already exists
     chrome.storage.local.get("username", (data) => {
@@ -25,6 +27,16 @@ function showLoginScreen() {
     <p id="message"></p>
   `
     document.getElementById("loginBtn").addEventListener("click", handleLogin)
+}
+
+function showHomeScreen() {
+    document.body.innerHTML = `
+    <input type="text" id="accountName" placeholder="Site Name" />
+    <input type="text" id="username" placeholder="Site Username" />
+    <input type="password" id="password" placeholder="Site Password" />
+    <button id="addCredBtn">Save Credentials</button>
+    <p id="message"></p> `
+    document.getElementById("addCredBtn").addEventListener("click", addCredentials)
 }
 
 function validateMasterPassword(password) {
@@ -74,8 +86,8 @@ async function handleSignup() {
 
     document.getElementById("message").textContent = "Account created!"
 
-
-    const exportedKey = generateKey(masterPassword, username)
+    const exportedKey = await generateKey(masterPassword, username)
+    globalMasterKey = exportedKey;
 
     chrome.storage.local.set({
         username: username,
@@ -106,7 +118,7 @@ async function generateKey(masterPassword, username) {
             salt: salt,
             iterations: 100000,
         }, 
-        keyMaterial,
+        keyMaterial, 
         { "name": "AES-GCM", "length": 256 },
         true,
         ["encrypt", "decrypt"]   
@@ -127,13 +139,64 @@ async function handleLogin() {
     }
 
     // Retrieve stored credentials
-    chrome.storage.local.get(["username", "password"], (data) => {
-        if (masterPassword === data.password.k) {
+    chrome.storage.local.get(["username", "password"], async (data) => {
+        const passwordAttempt = await generateKey(masterPassword, data.username)
+
+        if (passwordAttempt.k === data.password.k) {
             console.log("Login successful!")
             document.getElementById("message").textContent = "Welcome back, " + data.username + "!"
+            showHomeScreen()
+            globalMasterKey = passwordAttempt
         } else {
             console.log("Wrong password!")
             document.getElementById("message").textContent = "Incorrect password"
         }
     })
+}
+
+async function addCredentials() {
+    const accountName = document.getElementById("accountName").value
+    const username = document.getElementById("username").value
+    const password = document.getElementById("password").value
+
+    if (!accountName || !username || !password) {
+        document.getElementById("message").textContent = "Please fill in all fields"
+        return
+    }
+
+    chrome.storage.local.get("vault", async (data) => {
+        const existing = data.vault || []
+
+        // encrypt password and username
+        const {username: encryptedUsername, usernameIV, password: encryptedPassword, passwordIV} = await encryptCredentials(username, password)
+
+        const newCredentials = { site: accountName, username: encryptedUsername, usernameIV, password: encryptedPassword, passwordIV }
+        existing.push(newCredentials)
+
+        chrome.storage.local.set({ vault: existing }, () => {
+            document.getElementById("message").textContent = "Credentials saved!"
+            document.getElementById("accountName").value = ""
+            document.getElementById("username").value = ""
+            document.getElementById("password").value = ""
+        })
+    })
+}
+
+async function encryptCredentials(accountUsername, accountPassword) {
+    const enc = new TextEncoder()
+    
+    const usernameEncoded = enc.encode(accountUsername)
+    const usernameIV = crypto.getRandomValues(new Uint8Array(12));
+    const usernameEncrypted = await crypto.subtle.encrypt({name: "AES-GCM", usernameIV}, globalMasterKey, usernameEncoded) // fix this
+
+    const passwordEncoded = enc.encode(accountPassword)
+    const passwordIV = crypto.getRandomValues(new Uint8Array(12));
+    const passwordEncrypted = await crypto.subtle.encrypt({ name: "AES-GCM", passwordIV }, globalMasterKey, passwordEncoded)
+
+    return {
+        username: usernameEncrypted,
+        usernameIV: usernameIV,
+        password: passwordEncrypted,
+        passwordIV: passwordIV,
+    }
 }
