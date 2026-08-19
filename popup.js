@@ -91,14 +91,15 @@ async function handleSignup() {
     crypto.getRandomValues(salt)
     const saltedMasterKey = await generateKey(masterPassword, salt)
 
-    //globalMasterKey = saltedMasterKey;
+    globalMasterKey = saltedMasterKey;
 
-    const {verifierEncrypted, verifierIV} = await encryptVerifier(saltedMasterKey)
+    const verifierIV = crypto.getRandomValues(new Uint8Array(12));
+    const verifierEncrypted = await encryptVerifier(saltedMasterKey, verifierIV)
 
     chrome.storage.local.set({
         username: username,
         verifierEncrypted: verifierEncrypted,
-        verifierIV: verifierIV,
+        verifierIV: Array.from(verifierIV),
         salt: Array.from(salt)
     }, () => {
         console.log("Saved to storage!")
@@ -131,21 +132,17 @@ async function generateKey(masterPassword, salt) {
         ["encrypt", "decrypt"]   
     )
 
-    return await crypto.subtle.exportKey("jwk", masterKey)
+    return masterKey //await crypto.subtle.exportKey("jwk", masterKey)
 
 }
 
-async function encryptVerifier(masterKey){
+async function encryptVerifier(masterKey, verifierIV){
     const enc = new TextEncoder()
     
     const verifierEncoded = enc.encode(verifierPlaintext)
-    const verifierIV = crypto.getRandomValues(new Uint8Array(12));
     const verifierEncrypted = await crypto.subtle.encrypt({name: "AES-GCM", iv: verifierIV}, masterKey, verifierEncoded)
 
-    return {
-        verifierEncrypted: verifierEncrypted,
-        verifierIV: verifierIV,
-    }
+    return Array.from(new Uint8Array(verifierEncrypted))
 }
 
 async function handleLogin() {
@@ -160,10 +157,10 @@ async function handleLogin() {
 
     // Retrieve stored credentials
     chrome.storage.local.get(["username", "verifierEncrypted", "verifierIV", "salt"], async (data) => {
-        const passwordAttempt = await generateKey(masterPassword, data.salt)
-        const {verifierEncrypted, verifierIV} = await encryptVerifier(passwordAttempt)
+        const passwordAttempt = await generateKey(masterPassword, new Uint8Array(data.salt))
+        const verifierAttempt = await encryptVerifier(passwordAttempt, new Uint8Array(data.verifierIV))
 
-        if (passwordAttempt.k === data.password.k) {
+        if (JSON.stringify(verifierAttempt) === JSON.stringify(data.verifierEncrypted)) {
             console.log("Login successful!")
             document.getElementById("message").textContent = "Welcome back, " + data.username + "!"
             showHomeScreen()
@@ -208,16 +205,16 @@ async function encryptCredentials(accountUsername, accountPassword) {
     
     const usernameEncoded = enc.encode(accountUsername)
     const usernameIV = crypto.getRandomValues(new Uint8Array(12));
-    const usernameEncrypted = await crypto.subtle.encrypt({name: "AES-GCM", iv: usernameIV}, globalMasterKey, usernameEncoded) // fix this
+    const usernameEncrypted = await crypto.subtle.encrypt({name: "AES-GCM", iv: usernameIV}, globalMasterKey, usernameEncoded)
 
     const passwordEncoded = enc.encode(accountPassword)
     const passwordIV = crypto.getRandomValues(new Uint8Array(12));
     const passwordEncrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv: passwordIV }, globalMasterKey, passwordEncoded)
 
     return {
-        username: usernameEncrypted,
-        usernameIV: usernameIV,
-        password: passwordEncrypted,
-        passwordIV: passwordIV,
-    } // return as JSON, figure this out
+        username: Array.from(new Uint8Array(usernameEncrypted)),
+        usernameIV: Array.from(new Uint8Array(usernameIV)),
+        password: Array.from(new Uint8Array(passwordEncrypted)),
+        passwordIV: Array.from(new Uint8Array(passwordIV)),
+    }
 }
