@@ -32,12 +32,15 @@ function showLoginScreen() {
 
 function showHomeScreen() {
     document.body.innerHTML = `
+    <button id="viewSavedCreds">View Saved Credentials</button>
+    <hr>
     <input type="text" id="accountName" placeholder="Site Name" />
     <input type="text" id="username" placeholder="Site Username" />
     <input type="password" id="password" placeholder="Site Password" />
     <button id="addCredBtn">Save Credentials</button>
     <p id="message"></p> `
     document.getElementById("addCredBtn").addEventListener("click", addCredentials)
+    document.getElementById("viewSavedCreds").addEventListener("click", viewSavedCredentials)
 }
 
 function validateMasterPassword(password) {
@@ -217,4 +220,32 @@ async function encryptCredentials(accountUsername, accountPassword) {
         password: Array.from(new Uint8Array(passwordEncrypted)),
         passwordIV: Array.from(new Uint8Array(passwordIV)),
     }
+}
+
+async function viewSavedCredentials(){
+    document.body.innerHTML = `
+    <h3>All Saved Credentials</h3>
+    <div id="credList"></div>
+    <button id="back">Back</button>
+    
+  `
+    document.getElementById("back").addEventListener("click", showHomeScreen)
+
+    const credList = document.getElementById("credList")
+
+    chrome.storage.local.get("vault", async (data) => {
+        const existing = data.vault || []
+
+        if(existing.length === 0){
+            credList.innerHTML = '<li>No saved credentials</li>'
+            return
+        }
+        
+        existing.forEach((cred) => {
+            const listItem = document.createElement("li")
+            listItem.textContent = cred
+            credList.appendChild(listItem)
+        });
+
+    })
 }
