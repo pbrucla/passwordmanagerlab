@@ -264,7 +264,7 @@ async function viewSavedCredentials(){
         
         for(const cred of existing){
             const {username, password} = await decryptCredentials(cred)
-            credList.appendChild(formatCredential(cred.account, username, password))
+            credList.appendChild(formatCredential(cred.site, username, password))
         }
 
     })
@@ -273,7 +273,7 @@ async function viewSavedCredentials(){
 function formatCredential(account, username, password){
     const cred = document.createElement("div")
 
-    const accountDiv = document.createElement("div")
+    const accountDiv = document.createElement("b")
     accountDiv.textContent = account
     cred.appendChild(accountDiv)
 
