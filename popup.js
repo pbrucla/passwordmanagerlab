@@ -222,6 +222,27 @@ async function encryptCredentials(accountUsername, accountPassword) {
     }
 }
 
+async function decryptCredentials(cred){
+    const dec = new TextDecoder()
+
+    const usernameDecrypted = await crypto.subtle.decrypt(
+        {name: "AES-GCM", iv: new Uint8Array(cred.usernameIV)}, 
+        globalMasterKey, 
+        new Uint8Array(cred.username)
+    )
+
+    const passwordDecrypted = await crypto.subtle.decrypt(
+        {name: "AES-GCM", iv: new Uint8Array(cred.passwordIV)},
+        globalMasterKey,
+        new Uint8Array(cred.password)
+    )
+
+    return {
+        username: dec.decode(usernameDecrypted),
+        password: dec.decode(passwordDecrypted)
+    }
+}
+
 async function viewSavedCredentials(){
     document.body.innerHTML = `
     <h3>All Saved Credentials</h3>
@@ -241,11 +262,42 @@ async function viewSavedCredentials(){
             return
         }
         
-        existing.forEach((cred) => {
-            const listItem = document.createElement("li")
-            listItem.textContent = cred
-            credList.appendChild(listItem)
-        });
+        for(const cred of existing){
+            const {username, password} = await decryptCredentials(cred)
+            credList.appendChild(formatCredential(cred.account, username, password))
+        }
 
     })
+}
+
+function formatCredential(account, username, password){
+    const cred = document.createElement("div")
+
+    const accountDiv = document.createElement("div")
+    accountDiv.textContent = account
+    cred.appendChild(accountDiv)
+
+    const usernameDiv = document.createElement("div")
+    usernameDiv.textContent = "Username: " + username
+    cred.appendChild(usernameDiv)
+
+    const passwordDiv = document.createElement("div")
+    passwordDiv.textContent = "Password: " + "*".repeat(password.length)
+
+    const button = document.createElement("button")
+    button.textContent = "Show"
+    let show = false
+    button.addEventListener("click", () => {
+        show = !show
+        passwordDiv.textContent = show ? "Password: " + password : "Password: " + "*".repeat(password.length)
+        button.textContent = show ? "Hide" : "Show"
+    })
+
+    const passwordRow = document.createElement("div")
+    passwordRow.append(passwordDiv, " ", button)
+    cred.appendChild(passwordRow)
+
+    cred.appendChild(document.createElement("hr"))
+
+    return cred
 }
